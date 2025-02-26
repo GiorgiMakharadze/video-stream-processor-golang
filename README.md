@@ -1,28 +1,47 @@
 # Video Stream Processor
 
-This project is a server application designed to receive video streams from a frontend via WebSocket, process the video using FFmpeg to convert it into FLV format, and then stream the converted video to an Nginx server (typically used for RTMP streaming or further storage).
+This project is a **WebSocket-based video processing server** built with **Go**. It allows clients to send video streams in chunks over WebSocket, processes the received video using **FFmpeg**, converts it to FLV format, and then streams the output to an **RTMP server (Nginx-RTMP)** for further handling (e.g., live streaming or storage).
 
-## Overview
+## How It Works
 
-The application is built in Go and leverages a worker pool architecture to handle multiple simultaneous uploads efficiently. When a client connects via WebSocket, the server receives video chunks, writes them to a temporary file, and enqueues a processing task. Worker goroutines then process these tasks asynchronously by converting the video using FFmpeg and streaming the resulting FLV file to an RTMP endpoint hosted by Nginx.
+1. **WebSocket Connection:**
+   - Clients connect to the WebSocket server (`/ws` endpoint).
+   - They send video data in binary chunks over the connection.
+   
+2. **Receiving Video Data:**
+   - The server collects these chunks and writes them into a temporary file.
+   
+3. **Processing Video:**
+   - Once the full video is received, a task is queued for processing.
+   - The task is picked up by a worker from a pool of concurrent workers.
+   - FFmpeg converts the received file into FLV format.
 
-## Architecture
+4. **Streaming to RTMP Server:**
+   - The converted FLV file is streamed to an RTMP endpoint (configured in environment variables).
+   - After streaming, the temporary files are deleted to free up space.
 
-The project consists of three main components:
+## Features
+- **WebSocket support** for real-time video streaming.
+- **Asynchronous processing** using a worker pool to handle multiple uploads efficiently.
+- **FFmpeg integration** for video conversion to FLV format.
+- **RTMP streaming support** for live video broadcasting.
+- **Optimized resource management** with temporary file cleanup and background processing.
 
-1. **WebSocket Server**  
-   - Uses the [gorilla/websocket](https://github.com/gorilla/websocket) library to handle WebSocket connections.
-   - Receives binary video chunks from clients and stores them in a temporary file.
+## Environment Variables
+The server reads configurations from environment variables:
+- `WS_PORT`: WebSocket server port (default: `9090`)
+- `RTMP_URL`: RTMP server URL (default: `rtmp://localhost/live/stream`)
+- `HLS_URL`: HLS playback URL (default: `http://localhost:8080/hls/live/stream.m3u8`)
 
-2. **Worker Pool for Video Processing**  
-   - Implements a task queue to decouple the receipt of data from the intensive video processing work.
-   - Each task involves converting the video file to FLV format using FFmpeg and streaming it to an RTMP endpoint via an Nginx server.
+## Usage
+1. Start the Go WebSocket server.
+2. Connect a client and start sending a video stream.
+3. The server will process the video asynchronously and stream it to the RTMP server.
 
-3. **FFmpeg Integration and Nginx Streaming**  
-   - Uses FFmpeg commands to convert and stream video.
-   - The conversion step encodes video to FLV, and the streaming step sends the converted file to a configured RTMP server.
+## Dependencies
+- `gorilla/websocket` (WebSocket handling)
+- `FFmpeg` (Video processing and conversion)
+- `Nginx-RTMP` (Streaming server)
 
-## Project Structure
-
-Below is a suggested folder structure:
+This system ensures **efficient, concurrent, and scalable** video processing while keeping the WebSocket server responsive.
 
