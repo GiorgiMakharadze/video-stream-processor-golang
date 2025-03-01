@@ -7,6 +7,9 @@ build:
 run: build
 	$(BINARY)
 
+run-dev:
+	go run ./cmd/server/main.go
+
 clean:
 	rm -f $(BINARY)
 

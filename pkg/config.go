@@ -1,13 +1,11 @@
 package config
 
-import (
-	"os"
-)
+import "os"
 
 type Config struct {
 	WebSocketPort string
-	RTMPURL       string
-	HLSURL        string
+	RTMPBaseURL   string
+	HLSBaseURL    string
 }
 
 func LoadConfig() *Config {
@@ -16,19 +14,19 @@ func LoadConfig() *Config {
 		wsPort = "9090"
 	}
 
-	rtmpURL := os.Getenv("RTMP_URL")
-	if rtmpURL == "" {
-		rtmpURL = "rtmp://localhost/live/stream"
+	rtmpBaseURL := os.Getenv("RTMP_BASE_URL")
+	if rtmpBaseURL == "" {
+		rtmpBaseURL = "rtmp://localhost/live"
 	}
 
-	hlsURL := os.Getenv("HLS_URL")
-	if hlsURL == "" {
-		hlsURL = "http://localhost:8080/hls/live/stream.m3u8"
+	hlsBaseURL := os.Getenv("HLS_BASE_URL")
+	if hlsBaseURL == "" {
+		hlsBaseURL = "http://localhost:8080/live"
 	}
 
 	return &Config{
 		WebSocketPort: wsPort,
-		RTMPURL:       rtmpURL,
-		HLSURL:        hlsURL,
+		RTMPBaseURL:   rtmpBaseURL,
+		HLSBaseURL:    hlsBaseURL,
 	}
 }
