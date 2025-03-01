@@ -3,9 +3,11 @@ package websocket
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"time"
 
@@ -49,7 +51,12 @@ func handlePublisher(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 
 	room := rooms.Manager.CreateRoom(conn)
 	log.Printf("Created room with ID: %s", room.ID)
-
+	hlsDir := fmt.Sprintf("./hls/live/%s", room.ID)
+	if err := os.MkdirAll(hlsDir, 0755); err != nil {
+		log.Println("Failed to pre-create HLS directory:", err)
+		http.Error(w, "failed to prepare HLS directory", http.StatusInternalServerError)
+		return
+	}
 	resp := Response{
 		StreamID: room.ID,
 		Message:  "Room created",
@@ -62,7 +69,8 @@ func handlePublisher(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 	}
 
 	pr, pw := io.Pipe()
-	rtmpURL := cfg.RTMPBaseURL + "/" + room.ID
+	// rtmpURL := fmt.Sprintf("%s/%s", cfg.RTMPBaseURL, room.ID)
+	rtmpURL := fmt.Sprintf("%s/stream", cfg.RTMPBaseURL)
 
 	cmd := exec.Command("ffmpeg",
 		"-loglevel", "debug",
@@ -167,13 +175,14 @@ func handleViewer(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 		return
 	}
 
-	room, exists := rooms.Manager.GetRoom(streamID)
+	_, exists := rooms.Manager.GetRoom(streamID)
 	if !exists {
 		http.Error(w, "room not found", http.StatusNotFound)
 		return
 	}
 
-	hlsURL := cfg.HLSBaseURL + "/" + room.ID + "/index.m3u8"
+	// hlsURL := cfg.HLSBaseURL + "/" + room.ID + "/index.m3u8"
+	hlsURL := fmt.Sprintf("%s/index.m3u8", cfg.HLSBaseURL)
 	resp := Response{
 		HLSURL:  hlsURL,
 		Message: "Room found",
