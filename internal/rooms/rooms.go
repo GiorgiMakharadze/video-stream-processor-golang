@@ -1,10 +1,10 @@
 package rooms
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -25,19 +25,34 @@ var Manager = &RoomManager{
 	rooms: make(map[string]*Room),
 }
 
-func (rm *RoomManager) CreateRoom(publisher *websocket.Conn) *Room {
+func (rm *RoomManager) CreateRoomWithKey(streamKey string, publisher *websocket.Conn) (*Room, error) {
 	rm.mutex.Lock()
 	defer rm.mutex.Unlock()
-	roomID := uuid.New().String()
+
+	if _, exists := rm.rooms[streamKey]; exists {
+		return nil, fmt.Errorf("stream with key '%s' already exists", streamKey)
+	}
+
 	room := &Room{
-		ID:        roomID,
+		ID:        streamKey,
 		CreatedAt: time.Now(),
 		DataChan:  make(chan []byte, 1024),
 		Publisher: publisher,
 		CloseChan: make(chan struct{}),
 	}
-	rm.rooms[roomID] = room
-	return room
+	rm.rooms[streamKey] = room
+	return room, nil
+}
+
+func (rm *RoomManager) ListRooms() []Room {
+	rm.mutex.RLock()
+	defer rm.mutex.RUnlock()
+
+	var list []Room
+	for _, room := range rm.rooms {
+		list = append(list, *room)
+	}
+	return list
 }
 
 func (rm *RoomManager) GetRoom(id string) (*Room, bool) {

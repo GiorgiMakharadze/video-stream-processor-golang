@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/GiorgiMakharadze/video-stream-processor-golang.git/internal/middleware"
 	"github.com/GiorgiMakharadze/video-stream-processor-golang.git/internal/websocket"
 	pkg "github.com/GiorgiMakharadze/video-stream-processor-golang.git/pkg"
 )
@@ -11,7 +12,13 @@ import (
 func main() {
 	cfg := pkg.LoadConfig()
 
-	// WebSocket endpoint that handles both publishers and viewers.
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	http.HandleFunc("/streams", middleware.WithCORS(websocket.HandleStreamsList))
+
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket.WsHandler(w, r, cfg)
 	})
