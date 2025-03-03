@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"os/exec"
 	"time"
 
@@ -93,12 +92,6 @@ func handlePublisher(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 		log.Printf("Failed to create room: %v", err)
 		http.Error(w, err.Error(), http.StatusConflict)
 		conn.Close()
-		return
-	}
-	hlsDir := fmt.Sprintf("/tmp/hls/live/%s", streamKey)
-	if err := os.MkdirAll(hlsDir, 0755); err != nil {
-		log.Println("Failed to pre-create HLS directory:", err)
-		http.Error(w, "failed to prepare HLS directory", http.StatusInternalServerError)
 		return
 	}
 
@@ -227,7 +220,7 @@ func handleViewer(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 		return
 	}
 
-	hlsURL := fmt.Sprintf("%s/%s/index.m3u8", cfg.HLSBaseURL, streamKey)
+	hlsURL := fmt.Sprintf("%s/%s.m3u8", cfg.HLSBaseURL, streamKey)
 	resp := Response{
 		HLSURL:  hlsURL,
 		Message: "Stream found",

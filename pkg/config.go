@@ -21,7 +21,7 @@ func LoadConfig() *Config {
 
 	hlsBaseURL := os.Getenv("HLS_BASE_URL")
 	if hlsBaseURL == "" {
-		hlsBaseURL = "http://localhost:8080/live"
+		hlsBaseURL = "http://localhost:8080/hls/live"
 	}
 
 	return &Config{
