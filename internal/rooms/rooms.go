@@ -2,6 +2,7 @@ package rooms
 
 import (
 	"fmt"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -36,7 +37,7 @@ func (rm *RoomManager) CreateRoomWithKey(streamKey string, publisher *websocket.
 	room := &Room{
 		ID:        streamKey,
 		CreatedAt: time.Now(),
-		DataChan:  make(chan []byte, 1024),
+		DataChan:  make(chan []byte, 4),
 		Publisher: publisher,
 		CloseChan: make(chan struct{}),
 	}
@@ -62,8 +63,15 @@ func (rm *RoomManager) GetRoom(id string) (*Room, bool) {
 	return room, ok
 }
 
+func cleanupHLSFiles(streamKey string) {
+	hlsPath := fmt.Sprintf("/tmp/hls/live/%s*", streamKey)
+	exec.Command("sh", "-c", fmt.Sprintf("rm -f %s", hlsPath)).Run()
+}
+
 func (rm *RoomManager) DeleteRoom(id string) {
 	rm.mutex.Lock()
 	defer rm.mutex.Unlock()
 	delete(rm.rooms, id)
+
+	cleanupHLSFiles(id)
 }

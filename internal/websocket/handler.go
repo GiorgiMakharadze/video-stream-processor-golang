@@ -111,12 +111,15 @@ func handlePublisher(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 
 	cmd := exec.Command("ffmpeg",
 		"-loglevel", "debug",
-		"-re",
 		"-i", "pipe:0",
 		"-c:v", "libx264",
-		"-c:a", "aac",
 		"-preset", "ultrafast",
 		"-tune", "zerolatency",
+		"-g", "30",
+		"-c:a", "aac",
+		"-b:a", "128k",
+		"-flush_packets", "1",
+		"-fflags", "nobuffer",
 		"-f", "flv",
 		rtmpURL,
 	)
