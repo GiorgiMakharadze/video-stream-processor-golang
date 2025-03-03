@@ -1,13 +1,10 @@
 package websocket
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"os/exec"
 	"time"
 
 	"github.com/GiorgiMakharadze/video-stream-processor-golang.git/internal/rooms"
@@ -95,6 +92,15 @@ func handlePublisher(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 		return
 	}
 
+	if err := room.StartFFmpeg(cfg); err != nil {
+		log.Printf("Failed to start FFmpeg for streamKey %s: %v", streamKey, err)
+		conn.Close()
+		rooms.Manager.DeleteRoom(streamKey)
+		return
+	}
+
+	go room.Monitor()
+
 	resp := Response{
 		StreamKey: streamKey,
 		Message:   "Room created",
@@ -106,91 +112,17 @@ func handlePublisher(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 		return
 	}
 
-	pr, pw := io.Pipe()
-	rtmpURL := fmt.Sprintf("%s/%s", cfg.RTMPBaseURL, streamKey)
-
-	cmd := exec.Command("ffmpeg",
-		"-loglevel", "debug",
-		"-i", "pipe:0",
-		"-c:v", "libx264",
-		"-preset", "ultrafast",
-		"-tune", "zerolatency",
-		"-g", "30",
-		"-c:a", "aac",
-		"-b:a", "128k",
-		"-flush_packets", "1",
-		"-fflags", "nobuffer",
-		"-f", "flv",
-		rtmpURL,
-	)
-
-	cmd.Stdin = pr
-
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		log.Println("Error creating FFmpeg stderr pipe:", err)
-		conn.Close()
-		rooms.Manager.DeleteRoom(streamKey)
-		return
-	}
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Println("Error creating FFmpeg stdout pipe:", err)
-		conn.Close()
-		rooms.Manager.DeleteRoom(streamKey)
-		return
-	}
-
-	go streamLogger(stderrPipe, "STDERR")
-	go streamLogger(stdoutPipe, "STDOUT")
-
-	if err := cmd.Start(); err != nil {
-		log.Println("Error starting FFmpeg process:", err)
-		conn.Close()
-		rooms.Manager.DeleteRoom(streamKey)
-		return
-	}
-	log.Printf("FFmpeg started for streamKey %s, streaming to %s", streamKey, rtmpURL)
-
-	go func() {
-		defer pw.Close()
-		for data := range room.DataChan {
-			if _, err := pw.Write(data); err != nil {
-				log.Println("Error writing data to FFmpeg pipe:", err)
-				break
-			}
-		}
-	}()
-
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-room.CloseChan:
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
-
-	startTime := time.Now()
-	chunkCount := 0
-
 	for {
 		messageType, data, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("Publisher WebSocket read error: %v (streamKey: %s)", err, streamKey)
+			log.Printf("WebSocket read error (streamKey: %s): %v", streamKey, err)
 			break
 		}
 		if messageType == websocket.BinaryMessage {
 			select {
 			case room.DataChan <- data:
-				chunkCount++
 			default:
-				log.Printf("Stream %s data channel full - dropping packet", streamKey)
+				log.Printf("Room %s data channel full - dropping packet", streamKey)
 			}
 		}
 	}
@@ -198,16 +130,8 @@ func handlePublisher(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 	close(room.DataChan)
 	conn.Close()
 
-	log.Printf("Waiting for FFmpeg process to exit for streamKey %s...", streamKey)
-	if err := cmd.Wait(); err != nil {
-		log.Printf("FFmpeg process ended with error (streamKey %s): %v", streamKey, err)
-	} else {
-		log.Printf("FFmpeg process cleanly exited for streamKey %s", streamKey)
-	}
-
+	log.Printf("Stream %s closed", streamKey)
 	rooms.Manager.DeleteRoom(streamKey)
-	log.Printf("Stream %s closed (duration: %s, chunks received: %d)",
-		streamKey, time.Since(startTime), chunkCount)
 }
 
 func handleViewer(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
@@ -232,12 +156,5 @@ func handleViewer(w http.ResponseWriter, r *http.Request, cfg *pkg.Config) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Printf("Error responding to viewer request (streamKey: %s): %v", streamKey, err)
-	}
-}
-
-func streamLogger(pipe io.ReadCloser, label string) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		log.Printf("[FFmpeg %s] %s", label, scanner.Text())
 	}
 }
